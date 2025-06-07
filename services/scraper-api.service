@@ -1,0 +1,15 @@
+[Unit]
+Description=MealFlow Scraper API Service
+After=network.target chrome-debug.service
+Requires=chrome-debug.service
+
+[Service]
+User=scrape
+Group=scrape
+WorkingDirectory=/home/scrape/mealflow-scraper
+ExecStart=/home/scrape/mealflow-scraper/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
