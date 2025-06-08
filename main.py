@@ -2,19 +2,16 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-
-# Importeer je scraper functies
 import ah_scraper
 import jumbo_scraper
+import sys
 
-# Definieert het formaat van de binnenkomende requests
 class ScrapeRequest(BaseModel):
     url: HttpUrl
     supermarket: str
 
 app = FastAPI(title="MealFlow Headless Scraper API")
 
-# Koppelt een supermarktnaam aan de juiste scraper-functie
 SCRAPER_MAPPING = {
     "Albert Heijn": ah_scraper.scrape_price,
     "Jumbo": jumbo_scraper.scrape_price,
@@ -22,27 +19,34 @@ SCRAPER_MAPPING = {
 
 @app.post("/scrape")
 def handle_scrape_request(request: ScrapeRequest):
-    """
-    Ontvangt een URL en supermarktnaam, start een headless browser,
-    en schraapt de prijs.
-    """
     scraper_function = SCRAPER_MAPPING.get(request.supermarket)
     
     if not scraper_function:
         raise HTTPException(status_code=400, detail=f"No scraper available for supermarket: {request.supermarket}")
 
-    # Setup van de opties voor een headless Chrome instance
+    print(f"--- START SCRAPE REQUEST: {request.supermarket} - {request.url} ---", file=sys.stdout)
+
     chrome_options = Options()
 
-    # --- Opties om detectie te omzeilen ---
-    # 1. Verberg de "Chrome wordt bestuurd door..." infobalk.
+    # --- DEBUG SECTIE: TEST DEZE OPTIES EEN VOOR EEN ---
+    #
+    # Test 1: Zorg dat alle drie de regels hieronder een # ervoor hebben.
+    #         Herstart de service en test. Werkt het nu (ook al wordt AH geblokkeerd)?
+    #
+    # Test 2: Verwijder de # voor de EERSTE TWEE regels. Sla op, herstart de service en test opnieuw.
+    #         Werkt het nog steeds? Dan ligt het aan de derde regel.
+    #
+    # Test 3: Als Test 2 mislukte, zet dan de # terug voor de eerste twee regels,
+    #         en verwijder alleen de # voor de DERDE regel. Herstart en test.
+    
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     
-    # 2. Verander de 'navigator.webdriver' property van true naar false.
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
 
-    # --- Standaard headless en server-vriendelijke opties ---
+    # -----------------------------------------------------------------
+
+    # Essentiële headless en server-vriendelijke opties
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -51,20 +55,24 @@ def handle_scrape_request(request: ScrapeRequest):
     
     driver = None
     try:
-        # Initialiseer een nieuwe driver met de headless opties
+        print("Stap 1: Initialiseren van de Chrome driver...", file=sys.stdout)
         driver = webdriver.Chrome(options=chrome_options)
+        print("Stap 2: Chrome driver succesvol geïnitialiseerd.", file=sys.stdout)
         
-        # Roep de juiste scraper-functie aan met de nieuwe driver
         result = scraper_function(driver, str(request.url))
+        print(f"Stap 3: Scraper functie uitgevoerd. Resultaat: {result}", file=sys.stdout)
 
         if "error" in result:
+            print(f"Fout geretourneerd door scraper module: {result['error']}", file=sys.stderr)
             raise HTTPException(status_code=422, detail=result["error"])
         
+        print("--- EINDE SCRAPE REQUEST (SUCCESS) ---", file=sys.stdout)
         return result
 
     except Exception as e:
+        print(f"!!! ONVERWACHTE FOUT in handle_scrape_request: {str(e)}", file=sys.stderr)
         raise HTTPException(status_code=500, detail=f"A server error occurred: {str(e)}")
     finally:
-        # Belangrijk: sluit de browser na elke scrape-taak om geheugen vrij te maken
         if driver:
+            print("Stap 4: Chrome driver wordt afgesloten.", file=sys.stdout)
             driver.quit()
