@@ -26,7 +26,7 @@ app.post('/scrape', async (req, res) => {
   if (!scraperFunction) {
     return res.status(400).json({ error: `No scraper configured for supermarket: ${supermarket}` });
   }
-
+ 
   console.log(`Received request for ${supermarket}: ${url}`);
 
   try {

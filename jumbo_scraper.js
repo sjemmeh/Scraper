@@ -88,4 +88,4 @@ const scrapeJumbo = async (url) => {
   }
 };
 
-module.exports = { scrapeJumbo };
+module.exports = { scrapeJumbo }; 
